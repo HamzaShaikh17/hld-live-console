@@ -4,7 +4,6 @@ A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 Hig
 
 ## Demo
 
-
 <h2 align="center">🎬 HLD Live Console — Demo</h2>
 
 <p align="center">
@@ -12,22 +11,12 @@ A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 Hig
   and infrastructure observability.
 </p>
 
-<div align="center">
-  <video
-    src="[assets/hld-live-console-demo.mp4](https://github.com/HamzaShaikh17/hld-live-console/blob/main/assests/hld_live_console_demo.mp4)"
-    controls
-    autoplay
-    muted
-    loop
-    playsinline
-    width="100%"
-    poster="assets/demo-thumbnail.png">
-    Your browser does not support HTML video.
-    <a href="assets/hld-live-console-demo.mp4">
-      Watch the HLD Live Console demo
-    </a>
-  </video>
-</div>
+<p align="center">
+  <img
+    src="./assets/hld-live-console-demo.gif"
+    alt="HLD Live Console demo showing system design experiments"
+    width="100%">
+</p>
 
 <p align="center">
   <em>
@@ -35,7 +24,6 @@ A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 Hig
     circuit breakers, and failover experiments.
   </em>
 </p>
-
 ## Prerequisites
 
 - Docker + Docker Compose
