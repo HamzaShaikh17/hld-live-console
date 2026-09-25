@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HLD Live Console</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#0E1217; --panel:#161B22; --panel-2:#1C2128; --border:#2A313C;
+    --text:#E6E8EB; --text-dim:#8B95A1; --text-faint:#5B6470;
+    --accent:#58A6FF; --danger:#F0666E; --danger-dim:#3A1F22;
+    --ok:#4FD68C; --ok-dim:#16302A; --warn:#E3B341;
+    --font-ui:-apple-system,'Segoe UI',sans-serif; --font-mono:ui-monospace,'SFMono-Regular',Menlo,monospace;
+  }
+  * { box-sizing:border-box; }
+  html,body{height:100%;margin:0;}
+  body{ background:var(--bg); color:var(--text); font-family:var(--font-ui); }
+  .wrap{ display:flex; flex-direction:column; height:100vh; }
+  header{
+    padding:14px 20px; border-bottom:1px solid var(--border); background:var(--panel);
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  header h1{ font-size:15px; margin:0; font-weight:600; white-space:nowrap; }
+  header .sub{ font-size:12px; color:var(--text-faint); }
+  .conn{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:auto; }
+  .conn input{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    font-family:var(--font-mono); font-size:12px; padding:6px 8px; border-radius:4px; width:170px;
+  }
+  button{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    font-family:var(--font-ui); font-size:12px; padding:7px 12px; border-radius:5px; cursor:pointer;
+  }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#0E1217; border-color:var(--accent); font-weight:600; }
+  button:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  .health-strip{ display:flex; gap:10px; padding:10px 20px; border-bottom:1px solid var(--border); background:var(--panel); flex-wrap:wrap; }
+  .health-pill{
+    display:flex; align-items:center; gap:6px; font-size:12px; font-family:var(--font-mono);
+    background:var(--panel-2); border:1px solid var(--border); padding:5px 10px; border-radius:14px; color:var(--text-dim);
+  }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--text-faint); flex:none; }
+  .dot.up{ background:var(--ok); box-shadow:0 0 6px var(--ok); }
+  .dot.down{ background:var(--danger); box-shadow:0 0 6px var(--danger); }
+
+  .body{ flex:1; display:flex; overflow:hidden; }
+  .actions{ width:270px; min-width:270px; border-right:1px solid var(--border); overflow-y:auto; padding:14px; background:var(--panel); }
+  .actions h2{ font-size:11px; color:var(--text-faint); margin:0 0 10px; font-weight:600; }
+  .action-btn{
+    width:100%; text-align:left; margin-bottom:8px; padding:10px 12px; background:var(--panel-2);
+    border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:12.5px; line-height:1.4;
+  }
+  .action-btn:hover{ border-color:var(--accent); }
+  .action-btn.running{ border-color:var(--warn); color:var(--warn); }
+  .action-btn small{ display:block; color:var(--text-faint); font-size:11px; margin-top:3px; font-weight:400; }
+
+  .main{ flex:1; display:flex; flex-direction:column; overflow-y:auto; padding:16px 20px; gap:14px; }
+  .charts-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:12px 14px; }
+  .card h3{ font-size:11px; color:var(--text-faint); margin:0 0 8px; font-weight:600; }
+  .chart-wrap{ height:130px; }
+
+  .result-card pre{ margin:0; font-family:var(--font-mono); font-size:12px; color:var(--ok); white-space:pre-wrap; word-break:break-word; }
+  .result-card.idle pre{ color:var(--text-faint); }
+
+  .diagram-svg .node rect{ fill:var(--panel-2); stroke:var(--border); stroke-width:1.5; transition:all .2s ease; }
+  .diagram-svg .node text{ fill:var(--text-dim); font-size:11px; font-family:var(--font-mono); transition:fill .2s ease; }
+  .diagram-svg .node-ok rect{ stroke:var(--ok); fill:var(--ok-dim); } .diagram-svg .node-ok text{ fill:var(--ok); }
+  .diagram-svg .node-fail rect{ stroke:var(--danger); fill:var(--danger-dim); } .diagram-svg .node-fail text{ fill:var(--danger); }
+  .diagram-svg .node-degraded rect{ stroke:var(--warn); fill:#2A2410; } .diagram-svg .node-degraded text{ fill:var(--warn); }
+  .diagram-svg .edge{ stroke:var(--border); stroke-width:2; fill:none; transition:stroke .2s ease; }
+  .diagram-svg .edge-ok{ stroke:var(--ok); } .diagram-svg .edge-fail{ stroke:var(--danger); } .diagram-svg .edge-degraded{ stroke:var(--warn); }
+
+  .logs-card{ flex:1; display:flex; flex-direction:column; min-height:220px; }
+  .logs-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .logs-body{
+    flex:1; overflow-y:auto; font-family:var(--font-mono); font-size:11.5px; line-height:1.75;
+    background:var(--panel-2); border-radius:5px; padding:8px 10px;
+  }
+  .log-line{ white-space:pre-wrap; word-break:break-word; }
+  .log-line .ts{ color:var(--text-faint); }
+  .lvl-2{ color:var(--text-dim); } .lvl-4{ color:var(--warn); } .lvl-5{ color:var(--danger); } .lvl-c{ color:var(--accent); }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+  @media (max-width:820px){ .body{ flex-direction:column; } .actions{ width:100%; } .charts-row{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>HLD Live Console</h1>
+    <span class="sub">real traffic against your running docker compose stack</span>
+    <div class="conn">
+      <input id="baseUrl" value="http://localhost:8080" title="Load balancer (nginx)">
+      <input id="toxiUrl" value="http://localhost:8474" title="Toxiproxy control API">
+      <button class="primary" id="connectBtn">Connect</button>
+    </div>
+  </header>
+
+  <div class="health-strip" id="healthStrip"></div>
+
+  <div class="body">
+    <aside class="actions">
+      <h2>Live experiments (click to run for real)</h2>
+      <div id="actionList"></div>
+    </aside>
+
+    <main class="main">
+      <div class="charts-row">
+        <div class="card">
+          <h3>Client-measured latency (ms) - each dot is one real response</h3>
+          <div class="chart-wrap"><canvas id="latChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Requests / sec sent by this console</h3>
+          <div class="chart-wrap"><canvas id="rpsChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Request path (which component/connection just failed)</h3>
+        <svg class="diagram-svg" viewBox="0 0 700 250" style="width:100%;height:230px;">
+          <defs>
+            <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/>
+            </marker>
+          </defs>
+          <line id="e1" class="edge edge-idle" x1="350" y1="40" x2="350" y2="68" marker-end="url(#arrow2)"/>
+          <line id="e2" class="edge edge-idle" x1="350" y1="100" x2="350" y2="128" marker-end="url(#arrow2)"/>
+          <line id="e3" class="edge edge-idle" x1="330" y1="164" x2="130" y2="198" marker-end="url(#arrow2)"/>
+          <line id="e5" class="edge edge-idle" x1="345" y1="164" x2="270" y2="198" marker-end="url(#arrow2)"/>
+          <line id="e4" class="edge edge-idle" x1="355" y1="164" x2="405" y2="198" marker-end="url(#arrow2)"/>
+          <line id="e7" class="edge edge-idle" x1="370" y1="164" x2="565" y2="198" marker-end="url(#arrow2)"/>
+          <line id="e6" class="edge edge-idle" x1="310" y1="216" x2="340" y2="216" marker-end="url(#arrow2)"/>
+
+          <g id="node-client" class="node node-idle"><rect x="300" y="10" width="100" height="30" rx="5"/><text x="350" y="29" text-anchor="middle">Browser</text></g>
+          <g id="node-nginx" class="node node-idle"><rect x="300" y="70" width="100" height="30" rx="5"/><text x="350" y="89" text-anchor="middle">nginx (LB)</text></g>
+          <g id="node-app" class="node node-idle"><rect x="270" y="130" width="160" height="34" rx="5"/><text id="appLabel" x="350" y="151" text-anchor="middle">App instance</text></g>
+          <g id="node-redis" class="node node-idle"><rect x="60" y="199" width="110" height="34" rx="5"/><text x="115" y="220" text-anchor="middle">Redis</text></g>
+          <g id="node-toxiproxy" class="node node-idle"><rect x="200" y="199" width="110" height="34" rx="5"/><text x="255" y="220" text-anchor="middle">Toxiproxy</text></g>
+          <g id="node-pgprimary" class="node node-idle"><rect x="340" y="199" width="130" height="34" rx="5"/><text x="405" y="220" text-anchor="middle">Postgres primary</text></g>
+          <g id="node-pgreplica" class="node node-idle"><rect x="500" y="199" width="130" height="34" rx="5"/><text x="565" y="220" text-anchor="middle">Postgres replica</text></g>
+        </svg>
+        <div id="diagramNote" style="font-size:11px;color:var(--text-faint);margin-top:2px;">Run an experiment to trace its real path.</div>
+      </div>
+
+      <div class="card result-card idle" id="resultCard">
+        <h3>Last result</h3>
+        <pre id="resultText">Run an experiment to see real numbers here.</pre>
+      </div>
+
+      <div class="card logs-card">
+        <div class="logs-head">
+          <h3>Live server logs (polled from each instance's real request log)</h3>
+          <button id="logToggle">Pause</button>
+        </div>
+        <div class="logs-body" id="logsBody"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const rand = () => Math.random();
+
+// ---------------------------------------------------------------
+// Connection targets
+// ---------------------------------------------------------------
+function base() { return $('baseUrl').value.replace(/\/$/, ''); }
+function toxi() { return $('toxiUrl').value.replace(/\/$/, ''); }
+const INSTANCES = [
+  { id: 'lb', label: 'nginx (LB)', url: () => base() },
+  { id: 'app1', label: 'app1', url: () => 'http://localhost:3001' },
+  { id: 'app2', label: 'app2', url: () => 'http://localhost:3002' },
+  { id: 'app3', label: 'app3', url: () => 'http://localhost:3003' },
+  { id: 'canary', label: 'canary', url: () => 'http://localhost:3004' },
+];
+
+// ---------------------------------------------------------------
+// Charts
+// ---------------------------------------------------------------
+let latPoints = []; // {ok:bool, ms:number}
+let rpsBuckets = []; // per-second counts { ok, err }
+let currentBucket = { ok: 0, err: 0 };
+
+const chartOpts = () => ({
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: { x: { display: false }, y: { grid: { color: '#2A313C' }, ticks: { color: '#5B6470', font: { size: 10 } } } },
+  elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 2 } }
+});
+const latChart = new Chart($('latChart'), {
+  type: 'line',
+  data: { labels: [], datasets: [{ data: [], borderColor: '#58A6FF' }] },
+  options: chartOpts()
+});
+const rpsChart = new Chart($('rpsChart'), {
+  type: 'bar',
+  data: { labels: [], datasets: [
+    { data: [], backgroundColor: '#4FD68C', stack: 's' },
+    { data: [], backgroundColor: '#F0666E', stack: 's' }
+  ] },
+  options: chartOpts()
+});
+
+setInterval(() => {
+  rpsBuckets.push({ ok: currentBucket.ok, err: currentBucket.err });
+  currentBucket = { ok: 0, err: 0 };
+  if (rpsBuckets.length > 30) rpsBuckets.shift();
+  rpsChart.data.labels = rpsBuckets.map((_, i) => i);
+  rpsChart.data.datasets[0].data = rpsBuckets.map((b) => b.ok);
+  rpsChart.data.datasets[1].data = rpsBuckets.map((b) => b.err);
+  rpsChart.update('none');
+}, 1000);
+
+function pushLatency(ok, ms) {
+  latPoints.push({ ok, ms });
+  if (latPoints.length > 60) latPoints.shift();
+  latChart.data.labels = latPoints.map((_, i) => i);
+  latChart.data.datasets[0].data = latPoints.map((p) => p.ms);
+  latChart.data.datasets[0].borderColor = latPoints[latPoints.length - 1].ok ? '#58A6FF' : '#F0666E';
+  latChart.update('none');
+  if (ok) currentBucket.ok++; else currentBucket.err++;
+}
+
+// ---------------------------------------------------------------
+// Timed fetch wrapper - every call here is a REAL request to your stack
+// ---------------------------------------------------------------
+let lastInstance = null;
+let lastOk = null;
+async function timedFetch(url, opts) {
+  const start = performance.now();
+  try {
+    const res = await fetch(url, opts);
+    const ms = Math.round(performance.now() - start);
+    pushLatency(res.ok, ms);
+    let body = null;
+    try { body = await res.json(); } catch (e) {}
+    const instance = res.headers.get('X-Instance-Id');
+    if (instance) lastInstance = instance;
+    lastOk = res.ok;
+    return { ok: res.ok, status: res.status, ms, body, instance };
+  } catch (e) {
+    const ms = Math.round(performance.now() - start);
+    pushLatency(false, ms);
+    lastOk = false;
+    clientLog('ERR', `fetch failed: ${url} - ${e.message} (likely CORS or the target isn't reachable)`);
+    return { ok: false, status: 0, ms, error: e.message, instance: null };
+  }
+}
+
+function setResult(obj) {
+  $('resultCard').classList.remove('idle');
+  $('resultText').textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+}
+
+// ---------------------------------------------------------------
+// Live log stream: polls each instance's real /logs/recent
+// ---------------------------------------------------------------
+const logCursors = {};
+let logPaused = false;
+let clientLogSeq = 0;
+function clientLog(level, msg) {
+  appendLogLines([{ ts: Date.now(), instance: 'console', lvl: level === 'ERR' ? 'ERR' : 'INFO', method: '', path: msg, status: '', duration_ms: '', source: 'client' }]);
+}
+
+function appendLogLines(lines) {
+  const body = $('logsBody');
+  const atBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 40;
+  lines.forEach((l) => {
+    const div = document.createElement('div');
+    div.className = 'log-line';
+    const t = new Date(l.ts).toTimeString().slice(0, 8);
+    let cls = 'lvl-2';
+    if (l.source === 'client') cls = 'lvl-c';
+    else if (l.status >= 500) cls = 'lvl-5';
+    else if (l.status >= 400) cls = 'lvl-4';
+    const tag = l.source === 'client' ? '[console]' : `[${l.instance}]`;
+    const detail = l.source === 'client' ? l.path : `${l.method} ${l.path} -> ${l.status} (${l.duration_ms}ms)`;
+    div.innerHTML = `<span class="ts">${t}</span> <span class="${cls}">${tag}</span> ${detail}`;
+    body.appendChild(div);
+  });
+  while (body.children.length > 400) body.removeChild(body.firstChild);
+  if (atBottom) body.scrollTop = body.scrollHeight;
+}
+
+async function pollLogsOnce() {
+  if (logPaused) return;
+  for (const inst of INSTANCES) {
+    if (inst.id === 'lb') continue; // lb has no log buffer of its own, it's just a proxy
+    const since = logCursors[inst.id] || 0;
+    try {
+      const res = await fetch(`${inst.url()}/logs/recent?since=${since}`);
+      if (!res.ok) continue;
+      const lines = await res.json();
+      if (lines.length) {
+        logCursors[inst.id] = lines[lines.length - 1].ts;
+        appendLogLines(lines);
+      }
+    } catch (e) { /* instance likely down - health strip already shows this */ }
+  }
+}
+setInterval(pollLogsOnce, 1000);
+$('logToggle').onclick = () => {
+  logPaused = !logPaused;
+  $('logToggle').textContent = logPaused ? 'Resume' : 'Pause';
+};
+
+// ---------------------------------------------------------------
+// Health strip
+// ---------------------------------------------------------------
+function renderHealthStrip() {
+  $('healthStrip').innerHTML = INSTANCES.map((i) =>
+    `<div class="health-pill" id="health-${i.id}"><span class="dot" id="dot-${i.id}"></span>${i.label}</div>`
+  ).join('');
+}
+renderHealthStrip();
+
+async function pollHealthOnce() {
+  for (const inst of INSTANCES) {
+    const dot = $('dot-' + inst.id);
+    if (!dot) continue;
+    try {
+      const res = await fetch(`${inst.url()}/health`, { cache: 'no-store' });
+      dot.className = 'dot ' + (res.ok ? 'up' : 'down');
+    } catch (e) {
+      dot.className = 'dot down';
+    }
+  }
+}
+setInterval(pollHealthOnce, 2000);
+$('connectBtn').onclick = () => { pollHealthOnce(); pollLogsOnce(); clientLog('INFO', 'connect requested - pinging all instances'); };
+
+// ---------------------------------------------------------------
+// Request path diagram - highlights which real component/connection
+// this action's traffic touched, based on the last response seen.
+// NOTE: this is path-level, not true distributed tracing - it shows
+// "this action touches Redis + Postgres and the overall call
+// succeeded/failed", not a guaranteed single-hop root cause. Real
+// per-hop tracing would need OpenTelemetry (a good Phase 5 addition).
+// ---------------------------------------------------------------
+const EDGE_TARGET = { e3: 'redis', e4: 'pgprimary', e5: 'toxiproxy', e6: 'pgprimary', e7: 'pgreplica' };
+const ALL_NODE_IDS = ['client', 'nginx', 'app', 'redis', 'toxiproxy', 'pgprimary', 'pgreplica'];
+const ALL_EDGE_IDS = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7'];
+
+const ACTION_EDGES = {
+  spike: [], stampede: ['e3', 'e4'], race: ['e4'], idem: ['e3'], nplus1: ['e4'],
+  readcontend: ['e3', 'e4'], replag: ['e4', 'e7'], dualwrite: ['e4', 'e3'],
+  breaker: ['e5', 'e6'], writebench: ['e4'], hotspot: [], fanout: ['e3'],
+  poolexhaust: ['e4'], datagrowth: ['e4'], rto: [], thirdparty: ['e4', 'e5', 'e6', 'e3'],
+  leak: [], saga: ['e4'], multileader: ['e3'], stalecache: ['e4', 'e3'],
+  distlock: ['e3'], optimisticui: ['e3']
+};
+const SKIP_DIAGRAM = new Set(['toxi-inject', 'toxi-clear', 'clockskew']);
+
+function looksDegraded(result) {
+  const s = JSON.stringify(result);
+  return /"fallback":true|"payment":"deferred"|"replayed":true|"breaker_state":"open"|compensation/i.test(s);
+}
+
+function resetDiagram() {
+  ALL_EDGE_IDS.forEach((id) => { const el = document.getElementById(id); if (el) el.setAttribute('class', 'edge edge-idle'); });
+  ALL_NODE_IDS.forEach((id) => { const el = document.getElementById('node-' + id); if (el) el.setAttribute('class', 'node node-idle'); });
+  $('appLabel').textContent = 'App instance';
+}
+
+function renderTrace(actionId, actionLabel, result) {
+  resetDiagram();
+  if (SKIP_DIAGRAM.has(actionId)) {
+    $('diagramNote').textContent = `"${actionLabel}" calls an instance or control API directly, bypassing the load balancer - not path-traced here.`;
+    return;
+  }
+  const state = !lastOk ? 'fail' : (looksDegraded(result) ? 'degraded' : 'ok');
+  const mark = (id, cls) => {
+    const el = document.getElementById(id.startsWith('e') ? id : 'node-' + id);
+    if (el) el.setAttribute('class', (id.startsWith('e') ? 'edge edge-' : 'node node-') + cls);
+  };
+  mark('e1', lastInstance || lastOk !== false ? 'ok' : 'fail');
+  mark('nginx', 'ok');
+  mark('e2', lastInstance ? 'ok' : 'fail');
+  mark('app', lastInstance ? state : 'fail');
+  $('appLabel').textContent = lastInstance ? `App: ${lastInstance}` : 'App: unreachable';
+  (ACTION_EDGES[actionId] || []).forEach((edgeId) => {
+    mark(edgeId, state);
+    mark(EDGE_TARGET[edgeId], state);
+  });
+  $('diagramNote').textContent = `Last traced: ${actionLabel} - ${state.toUpperCase()}${lastInstance ? ' (served by ' + lastInstance + ')' : ''}`;
+}
+
+
+// ---------------------------------------------------------------
+// Live experiments - every one of these sends REAL requests
+// ---------------------------------------------------------------
+const ACTIONS = [
+  {
+    id: 'spike', label: 'Traffic spike', desc: '20 concurrent /cpu-work calls, repeated for 8s',
+    run: async () => {
+      const end = Date.now() + 8000;
+      let sent = 0;
+      while (Date.now() < end) {
+        const batch = Array.from({ length: 20 }, () => timedFetch(`${base()}/cpu-work?ms=200`));
+        await Promise.allSettled(batch);
+        sent += 20;
+        await sleep(250);
+      }
+      return { experiment: 'traffic-spike', requests_sent: sent };
+    }
+  },
+  {
+    id: 'stampede', label: 'Cache stampede', desc: 'reset hot-item cache, then 150 concurrent reads',
+    run: async () => {
+      await timedFetch(`${base()}/hot-item/reset`, { method: 'POST' });
+      const batch = Array.from({ length: 150 }, () => timedFetch(`${base()}/hot-item`));
+      await Promise.allSettled(batch);
+      const hits = await timedFetch(`${base()}/hot-item/db-hits`);
+      return { experiment: 'cache-stampede', requests_sent: 150, db_hits: hits.body };
+    }
+  },
+  {
+    id: 'race', label: 'Race condition', desc: 'reset stock to 50, then 100 concurrent decrements',
+    run: async () => {
+      await timedFetch(`${base()}/stock/1/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock: 50 }) });
+      const results = await Promise.allSettled(
+        Array.from({ length: 100 }, () => timedFetch(`${base()}/decrement-stock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku: 1 }) }))
+      );
+      const ok200 = results.filter((r) => r.value && r.value.status === 200).length;
+      const conflict409 = results.filter((r) => r.value && r.value.status === 409).length;
+      const finalStock = await timedFetch(`${base()}/stock/1`);
+      return { experiment: 'race-condition', succeeded_200: ok200, rejected_409: conflict409, final_stock: finalStock.body };
+    }
+  },
+  {
+    id: 'idem', label: 'Idempotency retry storm', desc: '15 clients each retry the same charge 3x',
+    run: async () => {
+      await timedFetch(`${base()}/charges/reset`, { method: 'POST' });
+      const clients = Array.from({ length: 15 }, async (_, i) => {
+        const key = 'live-' + i + '-' + Date.now();
+        for (let r = 0; r < 3; r++) {
+          await timedFetch(`${base()}/charge`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify({ amount: 10 }) });
+        }
+      });
+      await Promise.allSettled(clients);
+      const total = await timedFetch(`${base()}/charges/total`);
+      return { experiment: 'idempotency', expected_if_idempotent: 150, actual_total: total.body };
+    }
+  },
+  {
+    id: 'nplus1', label: 'N+1 vs batched query', desc: 'one real request, compares query count & time',
+    run: async () => {
+      const res = await timedFetch(`${base()}/orders-with-items?count=300`);
+      return { experiment: 'n-plus-1', ...res.body, note: 'toggle BATCH_QUERY in .env and re-run to compare' };
+    }
+  },
+  {
+    id: 'readcontend', label: 'Read contention', desc: '80 concurrent reads of the same product row',
+    run: async () => {
+      const results = await Promise.allSettled(Array.from({ length: 80 }, () => timedFetch(`${base()}/product/1`)));
+      const times = results.map((r) => r.value.ms);
+      const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+      return { experiment: 'read-contention', requests: 80, avg_latency_ms: avg, note: 'toggle CACHE_MODE in .env and re-run to compare' };
+    }
+  },
+  {
+    id: 'replag', label: 'Replication lag', desc: 'write a key, read it from the replica immediately, then again after 4s',
+    run: async () => {
+      const key = 'live-' + Date.now();
+      await timedFetch(`${base()}/write/${key}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: 'hello' }) });
+      const immediate = await timedFetch(`${base()}/read-replica/${key}`);
+      await sleep(4000);
+      const after = await timedFetch(`${base()}/read-replica/${key}`);
+      return { experiment: 'replication-lag', immediate_read: immediate.body, read_after_4s: after.body };
+    }
+  },
+  {
+    id: 'dualwrite', label: 'Dual-write check', desc: '20 real orders, then compares orders vs. notifications sent',
+    run: async () => {
+      for (let i = 0; i < 20; i++) {
+        await timedFetch(`${base()}/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: 'widget' }) });
+      }
+      await sleep(1500);
+      const check = await timedFetch(`${base()}/consistency-check`);
+      return { experiment: 'dual-write', ...check.body, note: 'reflects whatever DUALWRITE_MODE/.env is set to right now' };
+    }
+  },
+  {
+    id: 'breaker', label: 'Checkout / circuit breaker', desc: '15 concurrent /checkout calls against the flaky dependency',
+    run: async () => {
+      const results = await Promise.allSettled(Array.from({ length: 15 }, () => timedFetch(`${base()}/checkout`)));
+      const status = await timedFetch(`${base()}/checkout/breaker-status`);
+      return { experiment: 'circuit-breaker', requests: 15, breaker_state: status.body, note: 'reflects whatever CIRCUIT_BREAKER/.env is set to right now' };
+    }
+  },
+  {
+    id: 'toxi-inject', label: 'Inject 3s latency (toxiproxy)', desc: 'best-effort - may fail from a local file due to toxiproxy CORS',
+    run: async () => {
+      try {
+        const res = await fetch(`${toxi()}/proxies/flaky_pg/toxics`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'latency', name: 'latency_downstream', attributes: { latency: 3000, jitter: 500 } })
+        });
+        return { experiment: 'toxiproxy-inject', ok: res.ok, status: res.status };
+      } catch (e) {
+        return { experiment: 'toxiproxy-inject', ok: false, error: e.message, fallback: 'run the curl command from the README/Makefile instead - toxiproxy likely blocked this by CORS' };
+      }
+    }
+  },
+  {
+    id: 'toxi-clear', label: 'Clear injected latency', desc: 'removes the toxic added above',
+    run: async () => {
+      try {
+        const res = await fetch(`${toxi()}/proxies/flaky_pg/toxics/latency_downstream`, { method: 'DELETE' });
+        return { experiment: 'toxiproxy-clear', ok: res.ok, status: res.status };
+      } catch (e) {
+        return { experiment: 'toxiproxy-clear', ok: false, error: e.message };
+      }
+    }
+  },
+
+  // ---------------- Batch 2: 14 more, all real ----------------
+  {
+    id: 'writebench', label: 'Write bottleneck (single vs sharded)', desc: '500 real inserts into one table vs 4 tables',
+    run: async () => {
+      const single = await timedFetch(`${base()}/write-bench?mode=single`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ n: 500 }) });
+      const sharded = await timedFetch(`${base()}/write-bench?mode=sharded`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ n: 500 }) });
+      return { experiment: 'write-bottleneck', single_table: single.body, sharded_tables: sharded.body, note: 'same Postgres instance - shows contention relief, not full node-level sharding' };
+    }
+  },
+  {
+    id: 'hotspot', label: 'Hotspotting (range vs hash)', desc: '5000 synthetic users, skewed 80% into one country',
+    run: async () => {
+      const range = await timedFetch(`${base()}/partition-demo?strategy=range&n=5000`);
+      const hash = await timedFetch(`${base()}/partition-demo?strategy=hash&n=5000`);
+      return { experiment: 'hotspotting', range_partitioning: range.body, hash_partitioning: hash.body };
+    }
+  },
+  {
+    id: 'fanout', label: 'Celebrity fan-out', desc: 'compares 500 followers (fan-out-on-write) vs 50,000 (fan-out-on-read)',
+    run: async () => {
+      const normal = await timedFetch(`${base()}/post`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorId: 'normal-user', followerCount: 500 }) });
+      const celeb = await timedFetch(`${base()}/post`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorId: 'celeb-user', followerCount: 50000 }) });
+      return { experiment: 'celebrity-fanout', normal_account: normal.body, celebrity_account: celeb.body };
+    }
+  },
+  {
+    id: 'poolexhaust', label: 'Connection pool exhaustion', desc: '20 concurrent 2s queries against a pool of 5',
+    run: async () => {
+      const results = await Promise.allSettled(Array.from({ length: 20 }, () => timedFetch(`${base()}/slow-query`)));
+      const ok = results.filter((r) => r.value && r.value.ok).length;
+      const failed = results.filter((r) => r.value && !r.value.ok).length;
+      return { experiment: 'pool-exhaustion', succeeded: ok, failed_or_queued: failed };
+    }
+  },
+  {
+    id: 'datagrowth', label: 'Data growth', desc: 'inserts 20,000 real rows, shows real table size before/after',
+    run: async () => {
+      const before = await timedFetch(`${base()}/table-size`);
+      await timedFetch(`${base()}/bulk-insert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ n: 20000 }) });
+      const after = await timedFetch(`${base()}/table-size`);
+      return { experiment: 'data-growth', before, after };
+    }
+  },
+  {
+    id: 'rto', label: 'Measure real failover RTO', desc: 'pings /hello every 150ms for 20s - go kill an instance mid-run',
+    run: async () => {
+      const start = Date.now();
+      let lastOk = null, firstFailAfterOk = null, recoveredAt = null;
+      const end = start + 20000;
+      while (Date.now() < end) {
+        const r = await timedFetch(`${base()}/hello`);
+        const now = Date.now();
+        if (r.ok) { if (firstFailAfterOk && !recoveredAt) recoveredAt = now; lastOk = now; }
+        else if (lastOk && !firstFailAfterOk) firstFailAfterOk = now;
+        await sleep(150);
+      }
+      const rto_ms = (firstFailAfterOk && recoveredAt) ? recoveredAt - firstFailAfterOk : null;
+      return { experiment: 'failover-rto', measured_rto_ms: rto_ms, note: rto_ms ? 'gap between last good ping and first recovered ping' : 'no failure detected during this run - try killing an instance while it runs' };
+    }
+  },
+  {
+    id: 'thirdparty', label: 'Third-party outage (graceful degrade)', desc: 'places an order while the payment dependency may be flaky',
+    run: async () => {
+      const order = await timedFetch(`${base()}/place-order-with-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: 'widget' }) });
+      const queue = await timedFetch(`${base()}/payment-retry-queue/length`);
+      return { experiment: 'third-party-outage', order: order.body, retry_queue_length: queue.body };
+    }
+  },
+  {
+    id: 'leak', label: 'Resource leak', desc: 'leaks ~200k objects, shows real Node heap/RSS growth',
+    run: async () => {
+      const before = await timedFetch(`${base()}/admin/memory`);
+      await timedFetch(`${base()}/admin/leak`, { method: 'POST' });
+      const after = await timedFetch(`${base()}/admin/memory`);
+      return { experiment: 'resource-leak', before: before.body, after: after.body, reset_hint: 'POST /admin/leak/reset to clear it' };
+    }
+  },
+  {
+    id: 'saga', label: 'Saga / distributed transaction', desc: 'reserves inventory, then simulates a payment failure and compensates',
+    run: async () => {
+      await timedFetch(`${base()}/stock/1/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock: 5 }) });
+      const success = await timedFetch(`${base()}/saga/purchase`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ failAt: 'none' }) });
+      const failed = await timedFetch(`${base()}/saga/purchase`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ failAt: 'payment' }) });
+      const stock = await timedFetch(`${base()}/stock/1`);
+      return { experiment: 'saga', successful_purchase: success.body, failed_with_compensation: failed.body, stock_after_both: stock.body };
+    }
+  },
+  {
+    id: 'multileader', label: 'Conflicting multi-leader writes', desc: 'two "regions" write to the same record independently',
+    run: async () => {
+      await timedFetch(`${base()}/region/reset`, { method: 'POST' });
+      await timedFetch(`${base()}/region/us/write`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: 'US edit' }) });
+      await sleep(50);
+      await timedFetch(`${base()}/region/eu/write`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: 'EU edit' }) });
+      const resolved = await timedFetch(`${base()}/region/resolve`);
+      return { experiment: 'multi-leader-conflict', ...resolved.body };
+    }
+  },
+  {
+    id: 'stalecache', label: 'Stale cache on write', desc: 'updates a product and shows whether the cache was invalidated',
+    run: async () => {
+      const before = await timedFetch(`${base()}/product/1`);
+      await timedFetch(`${base()}/product/1`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Renamed-' + Date.now() }) });
+      const after = await timedFetch(`${base()}/product/1`);
+      return { experiment: 'stale-cache', before: before.body, after_write: after.body, note: 'toggle INVALIDATE_ON_WRITE in .env and re-run to compare' };
+    }
+  },
+  {
+    id: 'clockskew', label: 'Clock skew vs logical clock', desc: 'compares wall-clock time across instances (app2 has +7s injected skew)',
+    run: async () => {
+      const t1 = await timedFetch('http://localhost:3001/clock/now');
+      const t2 = await timedFetch('http://localhost:3002/clock/now');
+      const l1 = await timedFetch('http://localhost:3001/clock/logical/tick', { method: 'POST' });
+      const l2 = await timedFetch('http://localhost:3002/clock/logical/tick', { method: 'POST' });
+      return { experiment: 'clock-skew', app1_wallclock: t1.body, app2_wallclock: t2.body, app1_lamport: l1.body, app2_lamport: l2.body, note: 'wall clocks disagree by the injected skew; lamport counters stay meaningfully ordered' };
+    }
+  },
+  {
+    id: 'distlock', label: 'Distributed lock + fencing token', desc: 'two workers race for the same lease-based lock',
+    run: async () => {
+      const w1 = await timedFetch(`${base()}/lock/acquire`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holder: 'worker-A', ttlSec: 4 }) });
+      const w2 = await timedFetch(`${base()}/lock/acquire`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holder: 'worker-B', ttlSec: 4 }) });
+      const status = await timedFetch(`${base()}/lock/status`);
+      return { experiment: 'distributed-lock', worker_A_attempt: w1.body, worker_B_attempt: w2.body, current_status: status.body };
+    }
+  },
+  {
+    id: 'optimisticui', label: 'Eventual consistency UX (optimistic like)', desc: 'client shows the like instantly; server confirms ~400ms later',
+    run: async () => {
+      const postId = 'demo-' + Date.now();
+      const clientSeenAt = performance.now();
+      clientLog('INFO', `optimistic UI: showing "liked" instantly for ${postId}`);
+      const server = await timedFetch(`${base()}/like/${postId}`, { method: 'POST' });
+      const confirmedAfterMs = Math.round(performance.now() - clientSeenAt);
+      return { experiment: 'optimistic-ui', post_id: postId, ui_updated_at_ms: 0, server_confirmed_at_ms: confirmedAfterMs, server_result: server.body };
+    }
+  },
+];
+
+const actionList = $('actionList');
+ACTIONS.forEach((a) => {
+  const btn = document.createElement('button');
+  btn.className = 'action-btn';
+  btn.id = 'act-' + a.id;
+  btn.innerHTML = `${a.label}<small>${a.desc}</small>`;
+  btn.onclick = async () => {
+    if (btn.classList.contains('running')) return;
+    btn.classList.add('running');
+    clientLog('INFO', `running: ${a.label}`);
+    lastInstance = null;
+    lastOk = null;
+    try {
+      const result = await a.run();
+      setResult(result);
+      renderTrace(a.id, a.label, result);
+      clientLog('INFO', `done: ${a.label}`);
+    } catch (e) {
+      setResult({ error: e.message });
+      renderTrace(a.id, a.label, { error: e.message });
+      clientLog('ERR', `${a.label} threw: ${e.message}`);
+    }
+    btn.classList.remove('running');
+  };
+  actionList.appendChild(btn);
+});
+
+pollHealthOnce();
+clientLog('INFO', 'console loaded - click Connect, then run an experiment');
+</script>
+</body>
+</html>

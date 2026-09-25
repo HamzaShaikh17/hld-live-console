@@ -1,0 +1,104 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+    ports: ["5432:5432"]
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+
+  postgres-replica:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+    ports: ["5433:5432"]
+    volumes:
+      - ./init-db-replica:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    ports:
+      - "8474:8474"
+      - "5450:5450"
+    volumes:
+      - ./toxiproxy/proxies.json:/config/proxies.json:ro
+    command: ["-host=0.0.0.0", "-config=/config/proxies.json"]
+
+  replicator:
+    build: ./replicator
+    environment:
+      PRIMARY_URL: postgresql://appuser:apppass@postgres:5432/appdb
+      REPLICA_URL: postgresql://appuser:apppass@postgres-replica:5432/appdb
+      REPLICATION_DELAY_MS: ${REPLICATION_DELAY_MS}
+    depends_on: [postgres, postgres-replica]
+
+  app1:
+    build: ./app
+    ports: ["3001:3000"]
+    environment: &app-env
+      INSTANCE_ID: app1
+      DATABASE_URL: postgresql://appuser:apppass@postgres:5432/appdb
+      REPLICA_DATABASE_URL: postgresql://appuser:apppass@postgres-replica:5432/appdb
+      FLAKY_DATABASE_URL: postgresql://appuser:apppass@toxiproxy:5450/appdb
+      REDIS_URL: redis://redis:6379
+      CACHE_MODE: ${CACHE_MODE}
+      STAMPEDE_PROTECTION: ${STAMPEDE_PROTECTION}
+      BATCH_QUERY: ${BATCH_QUERY}
+      CIRCUIT_BREAKER: ${CIRCUIT_BREAKER}
+      WRITE_MODE: ${WRITE_MODE}
+      READ_MODE: ${READ_MODE}
+      DUALWRITE_MODE: ${DUALWRITE_MODE}
+      CRASH_PROBABILITY: ${CRASH_PROBABILITY}
+      IDEMPOTENCY: ${IDEMPOTENCY}
+      INVALIDATE_ON_WRITE: ${INVALIDATE_ON_WRITE}
+      CLOCK_SKEW_MS: "0"
+      BUG_MODE: "off"
+    depends_on: [postgres, redis, postgres-replica, toxiproxy]
+
+  app2:
+    build: ./app
+    ports: ["3002:3000"]
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app2
+      CLOCK_SKEW_MS: "7000"
+    depends_on: [postgres, redis, postgres-replica, toxiproxy]
+
+  app3:
+    build: ./app
+    ports: ["3003:3000"]
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app3
+    depends_on: [postgres, redis, postgres-replica, toxiproxy]
+
+  app-v2-canary:
+    build: ./app
+    ports: ["3004:3000"]
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app-v2-canary
+      BUG_MODE: "on"
+    depends_on: [postgres, redis, postgres-replica, toxiproxy]
+
+  nginx:
+    image: nginx:1.27
+    ports: ["8080:80"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [app1, app2, app3, app-v2-canary]
+
+  dashboard:
+    image: nginx:1.27-alpine
+    ports: ["8090:80"]
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    depends_on: [app1, app2, app3, app-v2-canary, toxiproxy]

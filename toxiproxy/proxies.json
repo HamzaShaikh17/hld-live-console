@@ -1,0 +1,8 @@
+[
+  {
+    "name": "flaky_pg",
+    "listen": "0.0.0.0:5450",
+    "upstream": "postgres:5432",
+    "enabled": true
+  }
+]

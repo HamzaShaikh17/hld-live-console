@@ -1,0 +1,13 @@
+{
+  "name": "hld-lab-app",
+  "version": "1.0.0",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5",
+    "ioredis": "^5.4.1",
+    "opossum": "^8.1.4",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5"
+  }
+}

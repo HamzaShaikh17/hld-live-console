@@ -1,0 +1,6 @@
+{
+  "name": "hld-lab-replicator",
+  "version": "1.0.0",
+  "main": "replicator.js",
+  "dependencies": { "pg": "^8.11.5" }
+}
