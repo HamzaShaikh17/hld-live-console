@@ -5,11 +5,36 @@ A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 Hig
 ## Demo
 
 
+<h2 align="center">🎬 HLD Live Console — Demo</h2>
 
-https://github.com/user-attachments/assets/acd121e0-6e51-4032-9a41-92a460a7e6aa
+<p align="center">
+  Real-time system design experiments, resilience testing,
+  and infrastructure observability.
+</p>
 
+<div align="center">
+  <video
+    src="assets/hld-live-console-demo.mp4"
+    controls
+    autoplay
+    muted
+    loop
+    playsinline
+    width="100%"
+    poster="assets/demo-thumbnail.png">
+    Your browser does not support HTML video.
+    <a href="assets/hld-live-console-demo.mp4">
+      Watch the HLD Live Console demo
+    </a>
+  </video>
+</div>
 
-
+<p align="center">
+  <em>
+    Explore traffic spikes, cache stampedes, race conditions,
+    circuit breakers, and failover experiments.
+  </em>
+</p>
 
 ## Prerequisites
 
