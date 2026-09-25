@@ -2,6 +2,10 @@
 
 A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 High Availability, 4 Consistency. Every experiment follows the same loop: **break it → hit it with real traffic → observe the failure → flip one fix → re-run → compare numbers.**
 
+## Demo
+
+
+
 ## Prerequisites
 
 - Docker + Docker Compose
