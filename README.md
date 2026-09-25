@@ -2,14 +2,7 @@
 
 A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 High Availability, 4 Consistency. Every experiment follows the same loop: **break it → hit it with real traffic → observe the failure → flip one fix → re-run → compare numbers.**
 
-## Demo
-<h2 align="center">🎬 HLD Live Console — Demo</h2>
 
-<p align="center">
-  <img src="./assets/hld_live_console_demo.gif"
-       alt="HLD Live Console Demo"
-       width="100%">
-</p>
 ## Prerequisites
 
 - Docker + Docker Compose
