@@ -4,6 +4,7 @@ A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 Hig
 
 ## Demo
 
+assests/hld_live_console_demo.mp4
 
 
 ## Prerequisites
