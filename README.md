@@ -14,7 +14,7 @@ A local Docker Compose sandbox with 12 hands-on experiments — 4 Scaling, 4 Hig
 
 <div align="center">
   <video
-    src="assets/hld-live-console-demo.mp4"
+    src="[assets/hld-live-console-demo.mp4](https://github.com/HamzaShaikh17/hld-live-console/blob/main/assests/hld_live_console_demo.mp4)"
     controls
     autoplay
     muted
